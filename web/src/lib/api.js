@@ -1,3 +1,25 @@
+/**
+ * Default GPU config used when the daemon reports no saved configuration
+ * (get_gpu_config returns null for GPUs that were never modified).
+ */
+export function defaultGpuConfig() {
+  return {
+    fan_control_enabled: false,
+    fan_control_settings: {
+      mode: "static",
+      static_speed: 0.5,
+      temperature_key: "edge",
+      interval_ms: 500,
+      curve: { 40: 0.3, 50: 0.35, 60: 0.5, 70: 0.75, 80: 1.0 },
+    },
+    performance_level: null,
+    power_cap: null,
+    gpu_vf_curve: {},
+    mem_vf_curve: {},
+    power_profile_mode_index: null,
+  };
+}
+
 export async function apiGet(path) {
   const res = await fetch(path);
   if (!res.ok) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { apiGet, apiPut, apiPost } from "../lib/api.js";
+import { apiGet, apiPut, apiPost, defaultGpuConfig } from "../lib/api.js";
 import { ConfirmBox } from "./FanControl.jsx";
 
 const CONFIRM_WINDOW_MS = 4500; // daemon auto-reverts after 5s
@@ -30,7 +30,7 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
   useEffect(() => {
     let alive = true;
     const id = encodeURIComponent(gpuId);
-    apiGet(`/api/devices/${id}/config`).then((c) => alive && setConfig(c)).catch((e) => alive && setError(e.message));
+    apiGet(`/api/devices/${id}/config`).then((c) => alive && setConfig(c ?? defaultGpuConfig())).catch((e) => alive && setError(e.message));
     fetch(`/api/devices/${id}/clocks`).then((r) => r.json()).then((c) => alive && setClocks(c)).catch(() => {});
     fetchStatsOnce(gpuId).then((s) => alive && s && setStats(s));
     fetch(`/api/devices/${id}/pp-modes`).then((r) => r.json()).then((p) => alive && setPpModes(p.modes ?? [])).catch(() => {});

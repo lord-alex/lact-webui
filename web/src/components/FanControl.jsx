@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { apiGet, apiPut, apiPost } from "../lib/api.js";
+import { apiGet, apiPut, apiPost, defaultGpuConfig } from "../lib/api.js";
 
 const CONFIRM_WINDOW_MS = 4500; // daemon auto-reverts after 5s
 
@@ -18,7 +18,7 @@ export function FanControlModal({ gpuId, gpuName, onClose }) {
   useEffect(() => {
     let alive = true;
     apiGet(`/api/devices/${encodeURIComponent(gpuId)}/config`)
-      .then((cfg) => alive && setConfig(cfg))
+      .then((cfg) => alive && setConfig(cfg ?? defaultGpuConfig()))
       .catch((e) => alive && setError(e.message));
     // Sensor keys come from sniffing one live stats frame.
     fetchTempKeys(gpuId).then((keys) => alive && keys && setSensorKeys(keys));
