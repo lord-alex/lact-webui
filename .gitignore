@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+web/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime state
+*.pid
+
+# Editor/OS
+.idea/
+.vscode/
+.DS_Store
