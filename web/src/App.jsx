@@ -10,13 +10,28 @@ const SERIES_COLORS = ["#4fd1c5", "#f6ad55", "#f56565", "#63b3ed", "#b794f4", "#
 
 export default function App() {
   const [devices, setDevices] = useState(null);
+  const [vulkanDevices, setVulkanDevices] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     apiGet("/api/devices")
       .then(setDevices)
       .catch((e) => setError(e.message));
+    apiGet("/api/vulkan").then(setVulkanDevices).catch(() => {});
   }, []);
+
+  // gpuId "1002:67DF-1043:04FB-0000:01:00.0" -> PCI bus "01" -> match Vulkan device
+  function vulkanName(gpuId) {
+    const pci = gpuId.split("-").pop().split(":"); // ["0000","01","00.0"]
+    const bus = parseInt(pci[1], 16);
+    const addr = pci[2].split(".");
+    const dev = parseInt(addr[0], 16);
+    const fn = parseInt(addr[1], 16);
+    const match = vulkanDevices.find(
+      (v) => v.pciBus === bus && v.pciDevice === dev && v.pciFunction === fn
+    );
+    return match?.deviceName ?? null;
+  }
 
   return (
     <div className="app">
@@ -30,13 +45,13 @@ export default function App() {
       ) : devices.length === 0 ? (
         <div className="loading">No GPUs found</div>
       ) : (
-        devices.map((d) => <GpuCard key={d.id} gpuId={d.id} name={d.name} />)
+        devices.map((d) => <GpuCard key={d.id} gpuId={d.id} name={d.name} vulkanName={vulkanName(d.id)} />)
       )}
     </div>
   );
 }
 
-function GpuCard({ gpuId, name }) {
+function GpuCard({ gpuId, name, vulkanName }) {
   const [stats, setStats] = useState(null);
   const [connError, setConnError] = useState(null);
   const [showFanControl, setShowFanControl] = useState(false);
@@ -105,6 +120,7 @@ function GpuCard({ gpuId, name }) {
           Power
         </button>
         <h2>{name}</h2>
+        {vulkanName && <span className="vulkan-name">{vulkanName}</span>}
         {connError && <span className="error-badge">{connError}</span>}
       </div>
       <div className="tiles">

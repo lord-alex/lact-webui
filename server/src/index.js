@@ -4,6 +4,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { stat, readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { LactdClient, StatsPoller, DaemonError } from "./lactd.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,34 @@ function getPoller(gpuId) {
 }
 
 const app = Fastify({ logger: true });
+
+// Vulkan device enumeration (from the vulkan-enum helper, no display needed)
+const VULKAN_ENUM = path.resolve(__dirname, "../vulkan-enum");
+let vulkanCache = { data: null, at: 0 };
+app.get("/api/vulkan", async () => {
+  const TTL = 300_000;
+  if (vulkanCache.data && Date.now() - vulkanCache.at < TTL) return vulkanCache.data;
+  let out = "";
+  try {
+    out = await new Promise((resolve, reject) => {
+      execFile(VULKAN_ENUM, { timeout: 5000, env: { ...process.env, XDG_RUNTIME_DIR: `/run/user/${process.getuid()}` } }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
+    });
+  } catch (e) {
+    app.log.warn({ err: e.message }, "vulkan-enum failed");
+    return [];
+  }
+  // skip software renderers (llvmpipe: Mesa vendor 0x10005)
+  const devices = out
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      try { return JSON.parse(line); } catch { return null; }
+    })
+    .filter((d) => d && d.vendorId !== 0x10005);
+  vulkanCache = { data: devices, at: Date.now() };
+  return devices;
+});
 
 await app.register(fastifyWebsocket);
 

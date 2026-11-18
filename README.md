@@ -18,6 +18,7 @@ The LACT daemon exposes a newline-delimited JSON API on `/run/lactd.sock`. Brows
 ## Requirements
 
 - Node.js >= 20 (a self-contained install works fine)
+- gcc + libvulkan dev headers for the Vulkan device enumerator (`sudo apt install build-essential libvulkan-dev`)
 - LACT daemon running: `sudo systemctl enable --now lactd`
 - Socket access: the user running the server must be in the daemon's `admin_group`
   (see `/etc/lact/config.yaml`), or the socket group must match
@@ -92,6 +93,7 @@ All configuration changes go through LACT's safety flow: after applying, the set
 | POST | `/api/devices/:id/confirm` | Confirm or revert pending config (`{command: "confirm" \| "revert"}`) |
 | GET | `/api/devices/:id/clocks` | Clocks table (VF levels, ranges) |
 | GET | `/api/devices/:id/pp-modes` | Power profile modes (parsed from sysfs) |
+| GET | `/api/vulkan` | Vulkan physical devices (names, PCI location) via the `vulkan-enum` helper |
 | WS | `/api/devices/:id/stream` | Live `device_stats` frames (~1/s) |
 
 `:id` is the GPU id as returned by `/api/devices` (e.g. `1002:67DF-1043:04FB-0000:01:00.0`).

@@ -11,6 +11,9 @@ npm-debug.log*
 # Runtime state
 *.pid
 
+# Vulkan enumerator binary (built from vulkan-enum.c)
+server/vulkan-enum
+
 # Editor/OS
 .idea/
 .vscode/
