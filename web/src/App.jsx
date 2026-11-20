@@ -21,16 +21,15 @@ export default function App() {
   }, []);
 
   // gpuId "1002:67DF-1043:04FB-0000:01:00.0" -> PCI bus "01" -> match Vulkan device
-  function vulkanName(gpuId) {
+  function vulkanInfo(gpuId) {
     const pci = gpuId.split("-").pop().split(":"); // ["0000","01","00.0"]
     const bus = parseInt(pci[1], 16);
     const addr = pci[2].split(".");
     const dev = parseInt(addr[0], 16);
     const fn = parseInt(addr[1], 16);
-    const match = vulkanDevices.find(
+    return vulkanDevices.find(
       (v) => v.pciBus === bus && v.pciDevice === dev && v.pciFunction === fn
     );
-    return match?.deviceName ?? null;
   }
 
   return (
@@ -45,13 +44,17 @@ export default function App() {
       ) : devices.length === 0 ? (
         <div className="loading">No GPUs found</div>
       ) : (
-        devices.map((d) => <GpuCard key={d.id} gpuId={d.id} name={d.name} vulkanName={vulkanName(d.id)} />)
+        devices.map((d) => <GpuCard key={d.id} gpuId={d.id} name={d.name} vulkanInfo={vulkanInfo(d.id)} />)
       )}
     </div>
   );
 }
 
-function GpuCard({ gpuId, name, vulkanName }) {
+function hex(n, w = 1) {
+  return n.toString(16).padStart(w, "0");
+}
+
+function GpuCard({ gpuId, name, vulkanInfo }) {
   const [stats, setStats] = useState(null);
   const [connError, setConnError] = useState(null);
   const [showFanControl, setShowFanControl] = useState(false);
@@ -110,6 +113,16 @@ function GpuCard({ gpuId, name, vulkanName }) {
   const fan = stats?.stats?.fan;
   const fanPct = fan?.pwm_current != null && fan?.pwm_max ? Math.round((fan.pwm_current / fan.pwm_max) * 100) : null;
 
+  const vulkanTooltip = vulkanInfo
+    ? [
+        `Vulkan ${vulkanInfo.deviceIndex} (GPU${vulkanInfo.deviceIndex})`,
+        vulkanInfo.deviceName,
+        `PCI ${hex(vulkanInfo.pciDomain)}:${hex(vulkanInfo.pciBus, 2)}:${hex(vulkanInfo.pciDevice, 2)}.${vulkanInfo.pciFunction}`,
+        `vendor ${hex(vulkanInfo.vendorId, 4)}  device ${hex(vulkanInfo.deviceId, 4)}`,
+        `Vulkan API ${vulkanInfo.apiVersion}`,
+      ].join("\n")
+    : null;
+
   return (
     <section className="gpu-card">
       <div className="gpu-header">
@@ -120,7 +133,11 @@ function GpuCard({ gpuId, name, vulkanName }) {
           Power
         </button>
         <h2>{name}</h2>
-        {vulkanName && <span className="vulkan-name">{vulkanName}</span>}
+        {vulkanInfo && (
+          <span className="vulkan-name" title={vulkanTooltip}>
+            GPU{vulkanInfo.deviceIndex}
+          </span>
+        )}
         {connError && <span className="error-badge">{connError}</span>}
       </div>
       <div className="tiles">

@@ -70,10 +70,10 @@ int main(void) {
             vkGetPhysicalDeviceProperties2(devices[i], &props2);
         }
 
-        printf("{\"deviceName\":\"%s\",\"vendorId\":%u,\"deviceId\":%u,"
+        printf("{\"deviceIndex\":%u,\"deviceName\":\"%s\",\"vendorId\":%u,\"deviceId\":%u,"
                "\"pciDomain\":%u,\"pciBus\":%u,\"pciDevice\":%u,\"pciFunction\":%u,"
                "\"driverVersion\":%u,\"apiVersion\":\"%u.%u.%u\"}\n",
-               json_escape(props.deviceName), props.vendorID, props.deviceID,
+               i, json_escape(props.deviceName), props.vendorID, props.deviceID,
                havePci ? pci.pciDomain : 0, havePci ? pci.pciBus : 0,
                havePci ? pci.pciDevice : 0, havePci ? pci.pciFunction : 0,
                props.driverVersion,

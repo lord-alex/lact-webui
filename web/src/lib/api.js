@@ -20,6 +20,36 @@ export function defaultGpuConfig() {
   };
 }
 
+/**
+ * Base (hardware default) clocks table cache.
+ * The daemon's clocks table reflects currently applied VF overrides, so the
+ * true defaults are only visible while a GPU has no overrides. Cache them.
+ */
+const VF_BASE_PREFIX = "lact.vfBase.";
+
+export function loadVfBase(gpuId) {
+  try {
+    return JSON.parse(localStorage.getItem(VF_BASE_PREFIX + gpuId)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveVfBase(gpuId, clocks) {
+  try {
+    localStorage.setItem(VF_BASE_PREFIX + gpuId, JSON.stringify(clocks));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function hasVfOverrides(config) {
+  return (
+    Object.keys(config?.gpu_vf_curve ?? {}).length > 0 ||
+    Object.keys(config?.mem_vf_curve ?? {}).length > 0
+  );
+}
+
 export async function apiGet(path) {
   const res = await fetch(path);
   if (!res.ok) {

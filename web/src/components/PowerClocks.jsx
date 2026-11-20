@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { apiGet, apiPut, apiPost, defaultGpuConfig } from "../lib/api.js";
+import { apiGet, apiPut, apiPost, defaultGpuConfig, loadVfBase, saveVfBase, hasVfOverrides } from "../lib/api.js";
 import { ConfirmBox } from "./FanControl.jsx";
 
 const CONFIRM_WINDOW_MS = 4500; // daemon auto-reverts after 5s
@@ -20,6 +20,7 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
   const [config, setConfig] = useState(null);
   const [stats, setStats] = useState(null);
   const [clocks, setClocks] = useState(null);
+  const [baseTable, setBaseTable] = useState(() => loadVfBase(gpuId));
   const [ppModes, setPpModes] = useState([]);
   const [error, setError] = useState(null);
   const [applying, setApplying] = useState(false);
@@ -30,8 +31,21 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
   useEffect(() => {
     let alive = true;
     const id = encodeURIComponent(gpuId);
-    apiGet(`/api/devices/${id}/config`).then((c) => alive && setConfig(c ?? defaultGpuConfig())).catch((e) => alive && setError(e.message));
-    fetch(`/api/devices/${id}/clocks`).then((r) => r.json()).then((c) => alive && setClocks(c)).catch(() => {});
+    Promise.all([
+      apiGet(`/api/devices/${id}/config`).then((c) => c ?? defaultGpuConfig()),
+      fetch(`/api/devices/${id}/clocks`)
+        .then((r) => r.json())
+        .catch(() => null),
+    ])
+      .then(([cfg, clks]) => {
+        if (!alive) return;
+        setConfig(cfg);
+        if (clks) {
+          setClocks(clks);
+          syncBaseTable(gpuId, cfg, clks, setBaseTable);
+        }
+      })
+      .catch((e) => alive && setError(e.message));
     fetchStatsOnce(gpuId).then((s) => alive && s && setStats(s));
     fetch(`/api/devices/${id}/pp-modes`).then((r) => r.json()).then((p) => alive && setPpModes(p.modes ?? [])).catch(() => {});
     return () => {
@@ -91,7 +105,20 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
         setNote("Settings saved.");
       } else {
         setNote("Settings reverted.");
-        setConfig(await apiGet(`/api/devices/${encodeURIComponent(gpuId)}/config`));
+      }
+      // The daemon's clocks table reflects applied overrides, so re-read it
+      // (and the config) to show the post-apply state without a page reload.
+      const id = encodeURIComponent(gpuId);
+      const [cfg, clks] = await Promise.all([
+        apiGet(`/api/devices/${id}/config`).then((c) => c ?? defaultGpuConfig()),
+        fetch(`/api/devices/${id}/clocks`)
+          .then((r) => r.json())
+          .catch(() => null),
+      ]);
+      setConfig(cfg);
+      if (clks) {
+        setClocks(clks);
+        syncBaseTable(gpuId, cfg, clks, setBaseTable);
       }
     } catch (e) {
       setError(e.message);
@@ -179,7 +206,7 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
             <section className="pc-section">
               <h3>Core clock / voltage curve (SCLK)</h3>
               <VfCurveTable
-                levels={gcnLevels(clocks, "sclk_levels")}
+                levels={gcnLevels(baseTable ?? clocks, "sclk_levels")}
                 range={gcnRange(clocks, "vddc")}
                 clockRange={gcnRange(clocks, "sclk")}
                 overrides={config.gpu_vf_curve ?? {}}
@@ -192,7 +219,7 @@ export function PowerClocksModal({ gpuId, gpuName, onClose }) {
             <section className="pc-section">
               <h3>VRAM clock / voltage curve (MCLK)</h3>
               <VfCurveTable
-                levels={gcnLevels(clocks, "mclk_levels")}
+                levels={gcnLevels(baseTable ?? clocks, "mclk_levels")}
                 range={gcnRange(clocks, "vddc")}
                 clockRange={gcnRange(clocks, "mclk")}
                 overrides={config.mem_vf_curve ?? {}}
@@ -255,6 +282,20 @@ function PowerCap({ config, patchConfig, power }) {
   );
 }
 
+/**
+ * Keep the cached hardware-default clocks table in sync with daemon state.
+ * Only call with a config/clocks pair *read from the daemon*: while the daemon
+ * has no VF overrides applied, its clocks table is the hardware default.
+ */
+function syncBaseTable(gpuId, config, clocks, setBaseTable) {
+  if (!hasVfOverrides(config)) {
+    saveVfBase(gpuId, clocks);
+    setBaseTable(clocks);
+  } else {
+    setBaseTable(loadVfBase(gpuId));
+  }
+}
+
 function gcnLevels(clocks, key) {
   const table = clocks?.table;
   if (table?.type === "amd" && table.value?.kind === "gcn") {
@@ -287,10 +328,11 @@ function VfCurveTable({ levels, range, clockRange, overrides, onChange, clockLab
   const getOverride = (i) => overrides[String(i)] ?? {};
 
   function setPoint(i, field, raw) {
-    const value = raw === "" ? undefined : Number(raw);
+    const value = raw === "" || raw === undefined || raw === null ? undefined : Number(raw);
     const next = { ...overrides };
     const point = { ...(next[String(i)] ?? {}) };
-    point[field] = value;
+    if (value === undefined) delete point[field];
+    else point[field] = value;
     if (point.voltage === undefined && point.clockspeed === undefined) {
       delete next[String(i)];
     } else {
